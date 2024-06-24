@@ -3,7 +3,7 @@
 Adversarial search: TicTacToe AI Opponent
 
 In this project, various algorithms for adversarial search are implemented. 
-4 Search Algorothms are implemented: MinMax, MinMax with Cutoff depth (uses Evaluation function at set depth), AlphaBeta, AlphaBeta with depth cutoff, and MonteCarlo Tree search.
+4 Search Algorithms are implemented: MinMax, MinMax with Cutoff depth (uses Evaluation function at set depth), AlphaBeta, AlphaBeta with depth cutoff, and MonteCarlo Tree search.
 
 A few notes:
   1) The Evaluation function gives the highest value to the board configuration which has the most potential for a win by the player.
