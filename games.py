@@ -9,6 +9,12 @@ import time
 GameState = namedtuple('GameState', 'to_move, move, utility, board, moves')
 
 
+class SearchTimeout(Exception):
+    """Raised by the cutoff searches to unwind immediately once a deadline
+    has passed, instead of only being checked between full-depth passes."""
+    pass
+
+
 def gen_state(move='(1, 1)', to_move='X', x_positions=[], o_positions=[], h=3, v=3):
     """
         move = the move that has lead to this state,
@@ -57,98 +63,46 @@ def minmax(game, state):
     return max(game.actions(state), key=lambda a: min_value(game.result(state, a)), default=None)
 
 
-def minmax_cutoff(game, state):  # , end_time):
+def minmax_cutoff(game, state, deadline=None):
     """Given a state in a game, calculate the best move by searching
-    forward all the way to the cutoff depth. At that level use evaluation func."""
+    forward all the way to the cutoff depth game.d. At that level, use
+    eval1 to estimate the value of the (still non-terminal) state.
+
+    If deadline (an absolute time.perf_counter() value) is given, raises
+    SearchTimeout as soon as it passes, so a caller doing iterative
+    deepening can fall back to the previous depth's move instead of
+    waiting for the whole (possibly slow) depth to finish."""
     player = game.to_move(state)  # determine current player
 
+    def check_deadline():
+        if deadline is not None and time.perf_counter() > deadline:
+            raise SearchTimeout
+
     def max_value(state, d):
-        # print("Your code goes here -3pt")
-        # print("MinMax with Cutoff (max_value) running at depth: ", d)
+        check_deadline()
         if game.terminal_test(state) or d == 0:
-            # print("Terminal state max at depth: ", d)
-            return game.utility(state, player)  # game.utility(state, player)
+            return game.utility(state, player)
         if d == game.d:
             return game.eval1(state)  # get an estimated value for non-terminal state
         v = -np.inf
         for move in game.actions(state):
             v = max(v, min_value(game.result(state, move), d + 1))  # increment d with each recursive call
-            # print("Max d incremented to: ", d - 1)
         return v
-        # return 0
 
     def min_value(state, d):
-        # print("Your code goes here -2pt")
-        # print("MinMax with Cutoff (min_value) running at depth: ", d)
+        check_deadline()
         if game.terminal_test(state) or d == 0:
-            # print("Terminal state min at depth: ", d)
-            return game.utility(state, player)  # game.utility(state, player)
+            return game.utility(state, player)
         if d == game.d:
             return game.eval1(state)
         v = np.inf
         for move in game.actions(state):
             v = min(v, max_value(game.result(state, move), d + 1))
-            # print("Min d incremented to: ", d - 1)
         return v
-        # return 0
 
     # Body of minmax_cutoff:
-    # return max(game.actions(state), key=lambda a: min_value(game.result(state, a), 0), default=None)
-    # best_score = -np.inf
-    # best_move = None
-    # for move in game.actions(state):  # check all possible actions
-    #     v = min_value(game.result(state, move), 1)
-    #     if v > best_score:  # Select action with highest value
-    #         best_score = v
-    #         best_move = move
-    # return best_move
-
     return max(game.actions(state), key=lambda a: min_value(game.result(state, a), 1), default=None)
 
-
-    # if game.to_move(state) == player:  # consider whether its a maximizing or minimizing turn, if true its the current players turn (in the tree)
-    #     best_move = max(game.actions(state), key=lambda a: min_value(game.result(state, a), game.d), default=None)  # Opponent's optimal response is being simulated in min_value
-    #     print(f"Maximizing player chose move: {best_move}")
-    #     return best_move
-    # else:
-    #     best_move = min(game.actions(state), key=lambda a: max_value(game.result(state, a), game.d), default=None)  # Player's optimal response is being simulated in max_value
-    #     print(f"Minimizing player chose move: {best_move}")
-    #     return best_move
-
-# def minmax_cutoff(game, state):
-#     """Search game to determine best action; use eval1 to evaluate non-terminal states at depth d_limit."""
-#     player = game.to_move(state)
-#     d_limit = game.d
-#
-#     def max_value(state, depth):
-#         if game.terminal_test(state) or d_limit == 0:
-#             return game.utility(state, player)
-#         if depth == d_limit:
-#             return game.eval1(state)
-#         v = float('-inf')
-#         for a in game.actions(state):
-#             v = max(v, min_value(game.result(state, a), depth + 1))
-#         return v
-#
-#     def min_value(state, depth):
-#         if game.terminal_test(state) or d_limit == 0:
-#             return game.utility(state, player)
-#         if depth == d_limit:
-#             return game.eval1(state)
-#         v = float('inf')
-#         for a in game.actions(state):
-#             v = min(v, max_value(game.result(state, a), depth + 1))
-#         return v
-#
-#     # Body of minmax_cutoff:
-#     best_score = float('-inf')
-#     best_action = None
-#     for a in game.actions(state):
-#         v = min_value(game.result(state, a), 1)
-#         if v > best_score:
-#             best_score = v
-#             best_action = a
-#     return best_action
 
 
 # ______________________________________________________________________________
@@ -159,11 +113,9 @@ def alpha_beta(game, state):
      this version searches all the way to the leaves."""
     player = game.to_move(state)
 
-    # Functions used by alpha_beta
     def max_value(state, alpha, beta):
         if game.terminal_test(state):
             return game.utility(state, player)
-        # print("Your code goes here -3pt")
         v = -np.inf
         for a in game.actions(state):
             v = max(v, min_value(game.result(state, a), alpha, beta))
@@ -171,12 +123,10 @@ def alpha_beta(game, state):
                 return v
             alpha = max(alpha, v)
         return v
-        # return 0
 
     def min_value(state, alpha, beta):
         if game.terminal_test(state):
             return game.utility(state, player)
-        # print("Your code goes here -2pt")
         v = np.inf
         for a in game.actions(state):
             v = min(v, max_value(game.result(state, a), alpha, beta))
@@ -184,33 +134,30 @@ def alpha_beta(game, state):
                 return v
             beta = min(beta, v)
         return v
-        # return 0
 
     # Body of alpha_beta_search:
     alpha = -np.inf
     beta = np.inf
-    best_move = None
-    best_score = -np.inf
-    # print("Your code goes here -10pt")
-    # for move in game.actions(state):
-    #     v = min_value(game.result(state, move), alpha, beta)
-    #     if v > best_score:
-    #         best_score = v
-    #         best_move = move
     return max(game.actions(state), key=lambda a: min_value(game.result(state, a), alpha, beta), default=None)
-    # return best_move
 
 
-def alpha_beta_cutoff(game, state):
+def alpha_beta_cutoff(game, state, deadline=None):
     """Search game to determine best action; use alpha-beta pruning.
-    This version cuts off search and uses an evaluation function."""
+    This version cuts off search at game.d and uses eval1 to evaluate
+    non-terminal states at that depth.
+
+    If deadline (an absolute time.perf_counter() value) is given, raises
+    SearchTimeout as soon as it passes; see minmax_cutoff for why."""
     player = game.to_move(state)
 
-    # Functions used by alpha_beta
+    def check_deadline():
+        if deadline is not None and time.perf_counter() > deadline:
+            raise SearchTimeout
+
     def max_value(state, alpha, beta, depth):
+        check_deadline()
         if game.terminal_test(state) or depth == 0:
             return game.utility(state, player)
-        # print("Your code goes here -3pt")
         if depth == game.d:
             return game.eval1(state)
         v = -np.inf
@@ -220,12 +167,11 @@ def alpha_beta_cutoff(game, state):
                 return v
             alpha = max(alpha, v)
         return v
-        # return 0
 
     def min_value(state, alpha, beta, depth):
+        check_deadline()
         if game.terminal_test(state) or depth == 0:
             return game.utility(state, player)
-        # print("Your code goes here -2pt")
         if depth == game.d:
             return game.eval1(state)
         v = np.inf
@@ -235,29 +181,19 @@ def alpha_beta_cutoff(game, state):
                 return v
             beta = min(beta, v)
         return v
-        # return 0
 
-    # Body of alpha_beta_cutoff_search starts here:
-    # The default test cuts off at depth d or at a terminal state
+    # Body of alpha_beta_cutoff_search: cuts off at depth game.d or at a terminal state
     alpha = -np.inf
     beta = np.inf
-    # best_action = None
-    # best_score = -np.inf
-    # print("Your code goes here -10pt")
-    # for move in game.actions(state):
-    #     v = min_value(game.result(state, move), alpha, beta, 1)
-    #     if v > best_score:
-    #         best_score = v
-    #         best_action = move
-    # return best_action
     return max(game.actions(state), key=lambda a: min_value(game.result(state, a), alpha, beta, 1), default=None)
-    # return best_action
 
 
 # ______________________________________________________________________________
 # Players for Games
 def query_player(game, state):
     """Make a move by querying standard input."""
+    import ast
+
     print("current state:")
     game.display(state)
     print("available moves: {}".format(game.actions(state)))
@@ -266,8 +202,8 @@ def query_player(game, state):
     if game.actions(state):
         move_string = input('Your move? ')
         try:
-            move = eval(move_string)
-        except NameError:
+            move = ast.literal_eval(move_string)
+        except (ValueError, SyntaxError):
             move = move_string
     else:
         print('no legal moves: passing turn to next player')
@@ -280,10 +216,9 @@ def random_player(game, state):
 
 
 def alpha_beta_player(game, state):
-    """uses alphaBeta prunning with minmax, or with cutoff version, for AI player"""
-    # print("Your code goes here -2pt")
-    """Use a method to speed up at the start to avoid search down a long tree with not much outcome.
-    Hint: for speedup use random_player for start of the game when you see search time is too long"""
+    """Uses alpha-beta pruning (no limit) if there is no timer, otherwise
+    does iterative deepening with alpha_beta_cutoff, going one depth
+    deeper each pass until the timer runs out."""
 
     if game.timer < 0:
         game.d = -1
@@ -291,9 +226,7 @@ def alpha_beta_player(game, state):
 
     start = time.perf_counter()
     end = start + game.timer
-    """use the above timer to implement iterative deepening using alpha_beta_cutoff() version"""
     move = None
-    # print("Your code goes here -10pt")
     depth = 1
 
     if game.timer == 0:
@@ -303,9 +236,14 @@ def alpha_beta_player(game, state):
 
     while time.perf_counter() < end:
         game.d = depth
-        current_move = alpha_beta_cutoff(game, state)
-        if time.perf_counter() < end:
-            move = current_move  # Update the move only if there's still time left
+        try:
+            # deadline=end lets alpha_beta_cutoff bail out mid-search the
+            # instant time runs out, instead of only checking between
+            # full-depth passes (which is why the GUI's time limit used
+            # to be regularly overshot).
+            move = alpha_beta_cutoff(game, state, deadline=end)
+        except SearchTimeout:
+            break
         depth += 1
 
     print("iterative deepening to depth: ", game.d)
@@ -313,39 +251,36 @@ def alpha_beta_player(game, state):
 
 
 def minmax_player(game, state):
-    """uses minmax or minmax with cutoff depth, for AI player"""
-    # print("Your code goes here -3pt")
-    """Use a method to speed up at the start to avoid search down a long tree with not much outcome.
-    Hint:for speedup use random_player for start of the game when you see search time is too long"""
+    """Uses plain minmax (no limit) if there is no timer, otherwise does
+    iterative deepening with minmax_cutoff, going one depth deeper each
+    pass until the timer runs out."""
 
     if game.timer < 0:  # this is how the basic minmax function runs
         game.d = -1
         return minmax(game, state)
 
     start = time.perf_counter()
-    # print("Start time: ", start)
     end = start + game.timer
-    # print("End time: ", end)
-    """use the above timer to implement iterative deepening using minmax_cutoff() version"""
     move = None
-    # print("Your code goes here -10pt")
     depth = 1
 
-    # second case, timer ran out, use random
+    # timer ran out before we even started: fall back to a random move
     if game.timer == 0:
         game.d = depth
         print("timer out, selecting random")
         return random.choice(game.actions(state)) if game.actions(state) else None
 
-    # third case, timer hasn't ran out, use minmax_cutoff
+    # timer hasn't run out: iterative deepening with minmax_cutoff
     while time.perf_counter() < end:
         game.d = depth
-        current_move = minmax_cutoff(game, state)
-        # print("time is now: ", time.perf_counter())
-        # print("Start time: ", start)
-        # print("End time: ", end)
-        if time.perf_counter() < end:
-            move = current_move  # Update the move only if there's still time left
+        try:
+            # deadline=end lets minmax_cutoff bail out mid-search the
+            # instant time runs out, instead of only checking between
+            # full-depth passes (which is why the GUI's time limit used
+            # to be regularly overshot).
+            move = minmax_cutoff(game, state, deadline=end)
+        except SearchTimeout:
+            break
         depth += 1
 
     print("iterative deepening to depth: ", game.d)
@@ -491,14 +426,17 @@ class TicTacToe(Game):
 
         # This needs to check if there are any wins for x or o horizontally, vertically or diagonnally, then give a value to that move/state if there is or isnt
 
-        def possiblekComplete(move, board, player,
-                              k):  # Basically checks if this move can complete any of the following lines on the board, rather than checking the whole board for each move.
-            """if move can complete a line of count items, return 1 for 'X' player and -1 for 'O' player"""
-            match = self.k_in_row(board, move, player, (0, 1), k)  # Vertical
-            match = match + self.k_in_row(board, move, player, (1, 0), k)  # Horizontal
-            match = match + self.k_in_row(board, move, player, (1, -1), k)  # Decreasing Diagonal
-            match = match + self.k_in_row(board, move, player, (1, 1), k)  # Rising Diagonal
-            # print("Match: ", match)
+        def possiblekComplete(move, board, player, k):
+            """If player's mark were placed at move, how many lines of
+            length k through move would that complete? (0, 1, or more,
+            since a single move can complete a row, column and/or
+            diagonal simultaneously.)"""
+            hypothetical = dict(board)
+            hypothetical[move] = player
+            match = self.k_in_row(hypothetical, move, player, (0, 1), k)  # Vertical
+            match = match + self.k_in_row(hypothetical, move, player, (1, 0), k)  # Horizontal
+            match = match + self.k_in_row(hypothetical, move, player, (1, -1), k)  # Decreasing Diagonal
+            match = match + self.k_in_row(hypothetical, move, player, (1, 1), k)  # Rising Diagonal
             return match
 
         # Maybe to accelerate, return 0 if number of pieces on board is less than half of board size:
@@ -508,29 +446,37 @@ class TicTacToe(Game):
         # print("Running Evaluation Function")
         # return 0
 
-        # Check for immediate wins
+        def wouldWin(move, player):
+            """Would placing player's mark at move complete a line of self.k?"""
+            hypothetical = dict(state.board)
+            hypothetical[move] = player
+            return (self.k_in_row(hypothetical, move, player, (0, 1), self.k) or
+                    self.k_in_row(hypothetical, move, player, (1, 0), self.k) or
+                    self.k_in_row(hypothetical, move, player, (1, -1), self.k) or
+                    self.k_in_row(hypothetical, move, player, (1, 1), self.k))
+
+        # An open threat (a move that would complete a line right now)
+        # should outweigh the partial-match heuristic below, but must stay
+        # smaller in magnitude than a *confirmed* win's utility (+-self.k):
+        # an unrealized threat one ply away is worth less than a win that's
+        # already secured, since the opponent moves in between and may
+        # block it. Using self.k here (i.e. tying it with a real win) or
+        # something larger would make the search prefer leaving a winning
+        # move on the table over taking it immediately.
+        threat_bonus = max(1, self.k - 1)
         for move in state.moves:
-            if self.k_in_row(state.board, move, 'X', (0, 1), self.k) or \
-                    self.k_in_row(state.board, move, 'X', (1, 0), self.k) or \
-                    self.k_in_row(state.board, move, 'X', (1, -1), self.k) or \
-                    self.k_in_row(state.board, move, 'X', (1, 1), self.k):
-                return +1  # 'X' wins
-            if self.k_in_row(state.board, move, 'O', (0, 1), self.k) or \
-                    self.k_in_row(state.board, move, 'O', (1, 0), self.k) or \
-                    self.k_in_row(state.board, move, 'O', (1, -1), self.k) or \
-                    self.k_in_row(state.board, move, 'O', (1, 1), self.k):
-                return -1  # 'O' wins
-            else:
-                return 0  # tie
+            if wouldWin(move, 'X'):
+                return threat_bonus  # 'X' threatens to win here
+            if wouldWin(move, 'O'):
+                return -threat_bonus  # 'O' threatens to win here
 
+        # Otherwise score the board by how many (k-1)-in-a-rows each side
+        # could still complete with one of the remaining empty squares.
         score = 0
-
-        # Calculate potential wins
         for move in state.moves:
             score += possiblekComplete(move, state.board, 'X', self.k - 1)
             score -= possiblekComplete(move, state.board, 'O', self.k - 1)
 
-        # print("Score is: ", score)
         return score
 
     # @staticmethod
